@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import {
   screenCompound,
@@ -13,7 +13,6 @@ import {
   saveScreeningSession,
   getScreeningHistory,
   getSessionResults,
-  getSessionResultsForUser,
 } from "./db";
 import type { CompoundProperties, ScreeningResult } from "../shared/types";
 
@@ -33,7 +32,7 @@ const compoundDataSchema = z.object({
 
 export const appRouter = router({
   literature: router({
-    rxnormProducts: protectedProcedure
+    rxnormProducts: publicProcedure
       .input(
         z.object({
           name: z.string().min(1).max(200),
@@ -53,7 +52,7 @@ export const appRouter = router({
         };
       }),
 
-    clinicalTrials: protectedProcedure
+    clinicalTrials: publicProcedure
       .input(
         z.object({
           term: z.string().min(1).max(200),
@@ -73,7 +72,7 @@ export const appRouter = router({
         };
       }),
 
-    pubchem3dSdf: protectedProcedure
+    pubchem3dSdf: publicProcedure
       .input(z.object({ cid: z.number().int().positive() }))
       .query(async ({ input }) => {
         const { fetchPubChem3dSdfByCid } = await import("./_core/pubchem3d");
@@ -85,7 +84,7 @@ export const appRouter = router({
             `https://pubchem.ncbi.nlm.nih.gov/compound/${input.cid}#section=3D-Conformer` as const,
         };
       }),
-    pubchemDescription: protectedProcedure
+    pubchemDescription: publicProcedure
       .input(
         z.object({
           cid: z.number().int().positive(),
@@ -105,7 +104,7 @@ export const appRouter = router({
         };
       }),
 
-    pubmedRecent: protectedProcedure
+    pubmedRecent: publicProcedure
       .input(
         z.object({
           term: z.string().min(1).max(200),
@@ -149,7 +148,7 @@ export const appRouter = router({
       }),
 
     /** Screen multiple compounds by name (server-side PubChem fetch - fallback) */
-    batch: protectedProcedure
+    batch: publicProcedure
       .input(
         z.object({
           names: z.array(z.string().min(1).max(200)).min(1).max(100),
@@ -170,7 +169,7 @@ export const appRouter = router({
      * then sends the data here for BBB + CYP2E1 screening calculations.
      * This avoids PubChem blocking server-side requests (HTTP 503).
      */
-    screenWithData: protectedProcedure
+    screenWithData: publicProcedure
       .input(
         z.object({
           compounds: z.array(compoundDataSchema).min(1).max(100),
@@ -205,19 +204,21 @@ export const appRouter = router({
       }),
 
     /** Get screening history */
-    history: protectedProcedure
+    history: publicProcedure
       .input(
         z.object({ limit: z.number().min(1).max(50).optional() }).optional()
       )
       .query(async ({ ctx, input }) => {
-        return getScreeningHistory(ctx.user.id, input?.limit ?? 20);
+        // SitePasswordOnly mode: no per-user DB history
+        return getScreeningHistory(ctx.user?.id ?? null, input?.limit ?? 20);
       }),
 
     /** Get results for a specific session */
-    sessionResults: protectedProcedure
+    sessionResults: publicProcedure
       .input(z.object({ sessionId: z.number() }))
-      .query(async ({ input, ctx }) => {
-        return getSessionResultsForUser(input.sessionId, ctx.user.id);
+      .query(async ({ input }) => {
+        // SitePasswordOnly mode: no user scoping
+        return getSessionResults(input.sessionId);
       }),
   }),
 });

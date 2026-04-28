@@ -154,11 +154,12 @@ export async function saveScreeningSession(
   }
 }
 
-export async function getScreeningHistory(userId: number, limit = 20) {
+export async function getScreeningHistory(userId: number | null, limit = 20) {
   const db = await getDb();
   if (!db) return [];
 
   try {
+    if (!userId) return [];
     return db
       .select()
       .from(screeningSessions)
